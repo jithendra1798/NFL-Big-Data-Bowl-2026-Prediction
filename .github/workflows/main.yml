@@ -2,35 +2,50 @@ name: Sync Kaggle Notebooks
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight
+    - cron: '0 0 * * *'    # daily at 00:00 UTC
   workflow_dispatch:
+
+permissions:
+  contents: write          # needed to push updates
+
+concurrency:
+  group: kaggle-notebook-sync
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.x
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-    - name: Install kaggle
-      run: pip install kaggle
+      - name: Install Kaggle CLI
+        run: pip install --upgrade --disable-pip-version-check kaggle==1.5.16
 
-    - name: Download Kaggle notebook
-      env:
-        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      run: kaggle kernels pull jithendrapuppala/nfl_2026_big_data_bowl_baseline_prediction -p .
+      - name: Pull Kaggle notebook
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p notebooks
+          # Download source (.ipynb) and metadata (-m) into notebooks/
+          kaggle kernels pull jithendrapuppala/nfl_2026_big_data_bowl_baseline_prediction -m -p notebooks/
 
-    - name: Commit and push changes
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add .
-        git commit -m "Update Kaggle notebooks"
-        git push
+      - name: Commit and push changes (if any)
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add notebooks/
+          # Commit only when there are staged changes
+          git diff --cached --quiet || git commit -m "chore: sync Kaggle notebook"
+          # Push only if a commit was created
+          git rev-parse HEAD@{1} >/dev/null 2>&1 && git push || echo "No changes to push."
