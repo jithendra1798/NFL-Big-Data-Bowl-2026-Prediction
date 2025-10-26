@@ -2,8 +2,7 @@ name: Sync Kaggle Notebooks
 
 on:
   schedule:
-    # - cron: '0 0 * * *'    # daily at 00:00 UTC
-    - cron: '17 03 * * *'    # daily at 00:00 UTC
+    - cron: '25 03 * * *'    # daily at 00:00 UTC
   workflow_dispatch:
 
 permissions:
